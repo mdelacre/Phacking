@@ -1,0 +1,81 @@
+# optional stopping (modified Sherman's script)
+
+for (package in c("psych","parallel")) {
+  if (!require(package, character.only=T, quietly=T)) {
+    install.packages(package)
+    library(package, character.only=T)
+  }
+}
+
+phacking <- function(systematic_phacking=F,initialN=10, hackrate=1, m1=0, m2=0, sd1=1, sd2=1, maxN=11, alpha=.05,bound=.1, alternative="two.sided", graph=TRUE, nSims=1000) {
+  outmat <- matrix(NA, nrow=nSims, ncol=6)
+  
+  real_effectsize <- (m1-m2)/(sqrt(((initialN-1)*sd1^2+(initialN-1)*sd2^2)/(2*(initialN-1))))
+    
+  for(i in 1:nSims) {
+    g1 <- rnorm(initialN, m1, sd2)
+    g2 <- rnorm(initialN, m2, sd1)
+    dv <- c(g1,g2)
+    fact <-c(rep(1,length(g1)),rep(0,length(g2)))
+    initialpooled_sd <- sqrt(((length(g1)-1)*sd(g1)^2+(length(g2)-1)*sd(g2)^2)/(length(dv)-2))
+    initiald <- (mean(g1)-mean(g2))/initialpooled_sd # cohen's d
+    hackcount <- 0  # count the number of time we had to add subjects to achieve significant result
+    initialp <- t.test(g1, g2, alternative=alternative)$p.value 
+    currp<- initialp         # current p = initial p + p everytime hackrate subjects are added
+    
+    # if data peeking is done as long as p > .05 
+    if (systematic_phacking==T){   
+          while(currp > alpha & maxN > length(g1)) {    # add subjects as long as p is not significant
+                                                    # and n is smaller than maxN
+          hackcount <- hackcount + 1
+          g1 <- c(g1, rnorm(hackrate, m1, sd2))
+          g2 <- c(g2, rnorm(hackrate, m2, sd1))
+          currp <- t.test(g1, g2, alternative=alternative)$p.value}#
+    }
+    # if data peeking is done only when .05 < p < .1
+    if (systematic_phacking==F) { 
+      if (currp <= bound){
+        while(currp > alpha & maxN > length(g1)) {   
+          hackcount <- hackcount + 1
+          g1 <- c(g1, rnorm(hackrate, m1, sd2))
+          g2 <- c(g2, rnorm(hackrate, m2, sd1))
+          currp <- t.test(g1, g2, alternative=alternative)$p.value}}
+      else {currp=initialp}
+    }
+    
+  Nadded <- length(g1) - initialN   # how many subjects was added in order to have a significant result?
+  pooled_sd <- sqrt(((length(g1)-1)*sd(g1)^2+(length(g2)-1)*sd(g2)^2)/(length(dv)-2))
+  est.d <- (mean(g1)-mean(g2))/pooled_sd # cohen's d
+    
+  outmat[i,] <- c(initialp, hackcount, currp, Nadded, initiald, est.d)
+  }
+
+outmat <- data.frame(outmat)
+colnames(outmat) <- c("Initial.p", "Hackcount", "Final.p", "NAdded", "Initial.d", "Final.d")
+InitialSigProb <- sum(outmat$Initial.p <= alpha) / nSims
+AvgHacks <- mean(outmat$Hackcount)
+FinalSigProb <- sum(outmat$Final.p <= alpha) / nSims
+AvgNAdded <- mean(outmat$NAdded)
+AvgTotN <- mean(initialN + outmat$NAdded)
+StopProb <- sum((initialN + outmat$NAdded)==maxN) / nSims
+cat("Average Number of Hacks Before Significant/Stopping =", AvgHacks, "\n")
+cat("Average N Added Before Significant/Stopping =", AvgNAdded, "\n")
+cat("Average Total N", AvgTotN, "\n")
+ 
+   if(graph==TRUE) {
+   par(mfrow=c(2,1), las=1, font.main=1)
+   A=hist(outmat$Initial.p[outmat$Initial.p<alpha], plot=F)
+   A$counts=A$counts/sum(A$counts)
+   plot(A,freq=T,ylab="Relative Frequency",xlab="p-values", main="P-curve for Initial Study",
+        sub=paste("Number of Significant Studies = ", InitialSigProb*nSims, " (", InitialSigProb, ")", sep=""), col="lightblue")
+
+   B=hist(outmat$Final.p[outmat$Final.p<alpha], plot=F)
+   B$counts=B$counts/sum(B$counts)
+   plot(B,freq=T,ylab="Relative Frequency",xlab="p-values", main="P-curve for p-Hacked Study",
+        sub=paste("Number of Significant Studies = ", FinalSigProb*nSims, " (", FinalSigProb, ")", sep=""), col="lightblue")
+
+ }
+
+  return(outmat)
+}
+
