@@ -79,3 +79,6 @@ cat("Average Total N", AvgTotN, "\n")
   return(outmat)
 }
 
+res1 <- phacking(systematic_phacking=T,initialN=10, hackrate=10, m1=0, m2=0, sd1=2, sd2=2, maxN=100, alpha=.05,alternative="two.sided", graph=TRUE, nSims=10000)
+res2 <- phacking(systematic_phacking=F,bound=.1,initialN=10, hackrate=10, m1=0, m2=0, sd1=2, sd2=2, maxN=100, alpha=.05, alternative="two.sided", graph=TRUE, nSims=100000)
+
